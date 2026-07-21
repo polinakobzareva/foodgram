@@ -1,11 +1,12 @@
+from django.shortcuts import get_object_or_404
 from rest_framework import status, viewsets
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from django.shortcuts import get_object_or_404
-from recipes.serializers import Base64ImageField
+
 from recipes.models import Subscription
-from .serializers import MeSerializer, SignUpSerializer
+from recipes.serializers import Base64ImageField
 from .models import MyUser
+from .serializers import MeSerializer, SignUpSerializer
 
 
 class MyUserViewSet(viewsets.ModelViewSet):

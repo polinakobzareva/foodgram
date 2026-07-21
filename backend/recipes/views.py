@@ -1,18 +1,16 @@
 from django.shortcuts import get_object_or_404
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from .serializers import (
-    IngredientSerializer, RecipeMinifiedSerializer,
-    RecipeSerializer, TagSerializer
-)
-from .models import (Favorite, Recipe, Tag,
-                     Ingredient, RecipeIngredient,
-                     ShoppingCart)
-from foodgram.permissions import AuthorCheckMixin
-from django_filters.rest_framework import DjangoFilterBackend
+
 from .filters import RecipeFilter
+from .models import (Favorite, Ingredient, Recipe,
+                     RecipeIngredient, ShoppingCart, Tag)
+from .serializers import (IngredientSerializer, RecipeMinifiedSerializer,
+                          RecipeSerializer, TagSerializer)
+from foodgram.permissions import AuthorCheckMixin
 
 
 class IngredientViewSet(viewsets.ReadOnlyModelViewSet):

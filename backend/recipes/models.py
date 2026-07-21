@@ -1,12 +1,13 @@
-from django.contrib.auth import get_user_model
-
-from django.db import models
 import uuid
+
+from django.contrib.auth import get_user_model
+from django.db import models
+
 from foodgram.constants import (
-    TAG_MAX_LENGTH,
     INGREDIENT_NAME_MAX_LENGTH,
     MEASUREMENT_MAX_LENGTH,
     RECIPE_NAME_MAX_LENGTH,
+    TAG_MAX_LENGTH,
 )
 
 User = get_user_model()
