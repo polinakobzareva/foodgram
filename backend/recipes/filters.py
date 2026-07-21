@@ -7,16 +7,11 @@ class RecipeFilter(django_filters.FilterSet):
     author = django_filters.NumberFilter(field_name='author__id')
     tags = django_filters.CharFilter(method='filter_tags')
     is_favorited = django_filters.CharFilter(method='filter_is_favorited')
-    is_in_shopping_cart = django_filters.CharFilter(
-        method='filter_is_in_shopping_cart')
+    is_in_shopping_cart = django_filters.CharFilter(method='filter_is_in_shopping_cart')
 
     class Meta:
         model = Recipe
         fields = ['author', 'tags', 'is_favorited', 'is_in_shopping_cart']
-
-    def __init__(self, *args, **kwargs):
-        self.request = kwargs.pop('request', None)
-        super().__init__(*args, **kwargs)
 
     def filter_tags(self, queryset, name, value):
         if value:
@@ -25,11 +20,13 @@ class RecipeFilter(django_filters.FilterSet):
         return queryset
 
     def filter_is_favorited(self, queryset, name, value):
-        if value == '1':
-            return queryset.filter(favorites__user=self.request.user)
+        request = getattr(self, 'request', None)
+        if value == '1' and request and request.user.is_authenticated:
+            return queryset.filter(favorites__user=request.user)
         return queryset
 
     def filter_is_in_shopping_cart(self, queryset, name, value):
-        if value == '1':
-            return queryset.filter(shopping_cart__user=self.request.user)
+        request = getattr(self, 'request', None)
+        if value == '1' and request and request.user.is_authenticated:
+            return queryset.filter(shopping_cart__user=request.user)
         return queryset
