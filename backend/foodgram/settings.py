@@ -123,7 +123,7 @@ MEDIA_ROOT = '/app/media/'
 
 DJOSER = {
     'SERIALIZERS': {
-        'user': 'users.serializers.FoodgramUserSerializer',
-        'current_user': 'users.serializers.FoodgramUserSerializer',
+        'user': 'api.serializers.FoodgramUserSerializer',
+        'current_user': 'api.serializers.FoodgramUserSerializer',
     }
 }
