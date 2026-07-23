@@ -5,14 +5,14 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
-SECRET_KEY = 'django-insecure-jkfy!jdpbtedigr0_0*7bw0xl90wjlw9aipj@42vs4g(9%*3%x'
+SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-jkfy!jdpbtedigr0_0*7bw0xl90wjlw9aipj@42vs4g(9%*3%x')
 
-DEBUG = True
+DEBUG = os.getenv('DEBUG', 'false').lower() == 'true'
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '158.160.180.237']
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
 
-AUTH_USER_MODEL = 'users.MyUser'
+AUTH_USER_MODEL = 'users.User'
 
 
 INSTALLED_APPS = [
@@ -28,6 +28,7 @@ INSTALLED_APPS = [
     'django_filters',
     'users.apps.UsersConfig',
     'recipes.apps.RecipesConfig',
+    'api.apps.ApiConfig',
 
 ]
 
@@ -110,7 +111,7 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.AllowAny',
     ],
-    'DEFAULT_PAGINATION_CLASS': 'foodgram.pagination.CustomPagination',
+    'DEFAULT_PAGINATION_CLASS': 'api.pagination.CustomPagination',
     'PAGE_SIZE': 6,
 }
 
@@ -119,3 +120,10 @@ STATIC_ROOT = BASE_DIR / 'collected_static'
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = '/app/media/'
+
+DJOSER = {
+    'SERIALIZERS': {
+        'user': 'users.serializers.FoodgramUserSerializer',
+        'current_user': 'users.serializers.FoodgramUserSerializer',
+    }
+}
