@@ -1,10 +1,11 @@
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
+from django.urls import reverse
 from django_filters.rest_framework import DjangoFilterBackend
 from djoser.views import UserViewSet as DjoserUserViewSet
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from api.fields import Base64ImageField
@@ -35,7 +36,12 @@ class UserViewSet(DjoserUserViewSet):
     serializer_class = FoodgramUserSerializer
     permission_classes = (IsAuthenticated,)
 
-    @action(detail=False, methods=['put', 'delete'])
+    def get_permissions(self):
+        if self.action == 'retrieve':
+            return (AllowAny(),)
+        return super().get_permissions()
+
+    @action(detail=False, methods=['put', 'delete'], url_path='me/avatar')
     def avatar(self, request):
         if request.method == 'PUT':
             field = Base64ImageField()
@@ -49,13 +55,29 @@ class UserViewSet(DjoserUserViewSet):
     @action(detail=False, methods=['get'])
     def subscriptions(self, request):
         authors = User.objects.filter(subscribers__user=request.user)
+        page = self.paginate_queryset(authors)
+        if page is not None:
+            serializer = FoodgramUserSerializer(page,
+                                                many=True,
+                                                context={'request': request})
+            data = serializer.data
+            for item in data:
+                item['recipes'] = []
+                item['recipes_count'] = 0
+            return self.get_paginated_response(data)
         serializer = FoodgramUserSerializer(authors,
                                             many=True,
                                             context={'request': request})
-        return Response(serializer.data)
+        data = serializer.data
+        for item in data:
+            item['recipes'] = []
+            item['recipes_count'] = 0
+        return Response(data)
 
     @action(detail=True, methods=['post', 'delete'])
     def subscribe(self, request, id=None):
+        if not request.user.is_authenticated:
+            return Response(status=status.HTTP_401_UNAUTHORIZED)
         author = get_object_or_404(User, pk=id)
         if request.method == 'POST':
             if request.user == author:
@@ -68,7 +90,10 @@ class UserViewSet(DjoserUserViewSet):
                 return Response(status=status.HTTP_400_BAD_REQUEST)
             serializer = FoodgramUserSerializer(author,
                                                 context={'request': request})
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            data = serializer.data
+            data['recipes'] = []
+            data['recipes_count'] = 0
+            return Response(data, status=status.HTTP_201_CREATED)
         deleted, _ = Subscription.objects.filter(
             user=request.user,
             author=author
@@ -110,20 +135,21 @@ class RecipeViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(author=self.request.user)
 
-    @action(detail=True, methods=['post', 'delete'])
-    def favorite(self, request, pk=None):
+    def _add_to_relation(self, request, model, pk):
         recipe = self.get_object()
-        if request.method == 'POST':
-            _, created = Favorite.objects.get_or_create(
-                user=request.user,
-                recipe=recipe
-            )
-            if not created:
-                return Response(status=status.HTTP_400_BAD_REQUEST)
-            serializer = RecipeMinifiedSerializer(
-                recipe, context={'request': request})
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        deleted, _ = Favorite.objects.filter(
+        _, created = model.objects.get_or_create(
+            user=request.user,
+            recipe=recipe
+        )
+        if not created:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+        serializer = RecipeMinifiedSerializer(recipe,
+                                              context={'request': request})
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    def _remove_from_relation(self, request, model, pk):
+        recipe = self.get_object()
+        deleted, _ = model.objects.filter(
             user=request.user,
             recipe=recipe
         ).delete()
@@ -131,26 +157,19 @@ class RecipeViewSet(viewsets.ModelViewSet):
             return Response(status=status.HTTP_400_BAD_REQUEST)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-    @action(detail=True, methods=['post', 'delete'])
-    def shopping_cart(self, request, pk=None):
-        recipe = self.get_object()
+    @action(detail=True, methods=['post', 'delete'],
+            permission_classes=(IsAuthenticated,))
+    def favorite(self, request, pk=None):
         if request.method == 'POST':
-            _, created = ShoppingCart.objects.get_or_create(
-                user=request.user,
-                recipe=recipe
-            )
-            if not created:
-                return Response(status=status.HTTP_400_BAD_REQUEST)
-            serializer = RecipeMinifiedSerializer(
-                recipe, context={'request': request})
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        deleted, _ = ShoppingCart.objects.filter(
-            user=request.user,
-            recipe=recipe
-        ).delete()
-        if not deleted:
-            return Response(status=status.HTTP_400_BAD_REQUEST)
-        return Response(status=status.HTTP_204_NO_CONTENT)
+            return self._add_to_relation(request, Favorite, pk)
+        return self._remove_from_relation(request, Favorite, pk)
+
+    @action(detail=True, methods=['post', 'delete'],
+            permission_classes=(IsAuthenticated,))
+    def shopping_cart(self, request, pk=None):
+        if request.method == 'POST':
+            return self._add_to_relation(request, ShoppingCart, pk)
+        return self._remove_from_relation(request, ShoppingCart, pk)
 
     @action(detail=False, methods=['get'])
     def download_shopping_cart(self, request):
@@ -176,8 +195,16 @@ class RecipeViewSet(viewsets.ModelViewSet):
             'attachment; filename="shopping_list.txt"')
         return response
 
-    @action(detail=True, methods=['get'])
+    @action(detail=True, methods=['get'], url_path='get-link')
     def get_link(self, request, pk=None):
         recipe = self.get_object()
-        short_link = request.build_absolute_uri(f'/s/{recipe.short_id}')
+        short_link = request.build_absolute_uri(
+            reverse('short-link', kwargs={'short_id': recipe.short_id})
+        )
         return Response({'short-link': short_link})
+
+    @action(detail=False, methods=['get'], url_path='s/<str:short_id>')
+    def redirect_short_link(self, request, short_id=None):
+        recipe = get_object_or_404(Recipe, short_id=short_id)
+        serializer = RecipeReadSerializer(recipe, context={'request': request})
+        return Response(serializer.data)

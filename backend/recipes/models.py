@@ -6,11 +6,13 @@ from django.contrib.auth import get_user_model
 from django.db import models
 
 from foodgram.constants import (
+    AMOUNT_MIN,
     INGREDIENT_NAME_MAX_LENGTH,
     MEASUREMENT_MAX_LENGTH,
     RECIPE_NAME_MAX_LENGTH,
     SHORT_ID_MAX_LENGTH,
     TAG_MAX_LENGTH,
+    TIME_MIN
 )
 
 User = get_user_model()
@@ -90,7 +92,9 @@ class Recipe(models.Model):
     cooking_time = models.PositiveIntegerField(
         verbose_name='Время приготовления',
         validators=[
-            MinValueValidator(1, message='Время не может быть меньше 1')]
+            MinValueValidator(
+                TIME_MIN,
+                message=f'Время не может быть меньше {TIME_MIN}')]
     )
     created_at = models.DateTimeField(
         auto_now_add=True,
@@ -131,7 +135,9 @@ class RecipeIngredient(models.Model):
     amount = models.PositiveIntegerField(
         verbose_name='Количество',
         validators=[
-            MinValueValidator(1, message='Количество не может быть меньше 1')]
+            MinValueValidator(
+                AMOUNT_MIN,
+                message=f'Количество не может быть меньше {AMOUNT_MIN}')]
     )
 
     class Meta:
@@ -225,10 +231,10 @@ class Subscription(models.Model):
             )
         ]
 
+    def __str__(self):
+        return f'{self.user} подписан на {self.author}'
+
     def save(self, *args, **kwargs):
         if self.user == self.author:
             raise ValidationError('Нельзя подписаться на самого себя')
         super().save(*args, **kwargs)
-
-    def __str__(self):
-        return f'{self.user} подписан на {self.author}'

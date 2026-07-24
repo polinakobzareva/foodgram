@@ -15,5 +15,9 @@ router.register('ingredients', IngredientViewSet, basename='ingredients')
 router.register('recipes', RecipeViewSet, basename='recipes')
 
 urlpatterns = [
+    path('auth/', include('djoser.urls.authtoken')),
     path('', include(router.urls)),
+    path('s/<str:short_id>/',
+         RecipeViewSet.as_view({'get': 'redirect_short_link'}),
+         name='short-link'),
 ]
