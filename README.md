@@ -61,14 +61,14 @@ python manage.py runserver
 ## Развернуть проект в контейнере:
 
 Создайте в корне проекта папку .env ссо следующими переменными:
-POSTGRES_USER=
-POSTGRES_PASSWORD=
-POSTGRES_DB=
-DB_HOST=db
-DB_PORT=5432
-SECRET_KEY=
-DEBUG=false
-ALLOWED_HOSTS=localhost,127.0.0.1,ваш_домен
+- POSTGRES_USER=
+- POSTGRES_PASSWORD=
+- POSTGRES_DB=
+- DB_HOST=db
+- DB_PORT=5432
+- SECRET_KEY=
+- DEBUG=false
+- ALLOWED_HOSTS=localhost,127.0.0.1,ваш_домен
 
 Запустите контейнеры из корня проекта:
 
