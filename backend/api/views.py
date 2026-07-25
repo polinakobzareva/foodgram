@@ -17,6 +17,7 @@ from api.serializers import (
     RecipeMinifiedSerializer,
     RecipeReadSerializer,
     RecipeWriteSerializer,
+    SubscriptionSerializer,
     TagSerializer,
 )
 from recipes.models import (
@@ -34,14 +35,14 @@ from users.models import User
 class UserViewSet(DjoserUserViewSet):
     queryset = User.objects.all()
     serializer_class = FoodgramUserSerializer
-    permission_classes = (IsAuthenticated,)
 
     def get_permissions(self):
         if self.action == 'retrieve':
             return (AllowAny(),)
         return super().get_permissions()
 
-    @action(detail=False, methods=['put', 'delete'], url_path='me/avatar')
+    @action(detail=False, methods=['put', 'delete'], url_path='me/avatar',
+            permission_classes=(IsAuthenticated,))
     def avatar(self, request):
         if request.method == 'PUT':
             field = Base64ImageField()
@@ -52,27 +53,17 @@ class UserViewSet(DjoserUserViewSet):
         request.user.avatar.delete(save=True)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'],
+            permission_classes=(IsAuthenticated,))
     def subscriptions(self, request):
         authors = User.objects.filter(subscribers__user=request.user)
         page = self.paginate_queryset(authors)
-        if page is not None:
-            serializer = FoodgramUserSerializer(page,
-                                                many=True,
-                                                context={'request': request})
-            data = serializer.data
-            for item in data:
-                item['recipes'] = []
-                item['recipes_count'] = 0
-            return self.get_paginated_response(data)
-        serializer = FoodgramUserSerializer(authors,
-                                            many=True,
-                                            context={'request': request})
-        data = serializer.data
-        for item in data:
-            item['recipes'] = []
-            item['recipes_count'] = 0
-        return Response(data)
+        serializer = SubscriptionSerializer(
+            page,
+            many=True,
+            context={'request': request}
+        )
+        return self.get_paginated_response(serializer.data)
 
     @action(detail=True, methods=['post', 'delete'])
     def subscribe(self, request, id=None):
@@ -88,12 +79,11 @@ class UserViewSet(DjoserUserViewSet):
             )
             if not created:
                 return Response(status=status.HTTP_400_BAD_REQUEST)
-            serializer = FoodgramUserSerializer(author,
-                                                context={'request': request})
-            data = serializer.data
-            data['recipes'] = []
-            data['recipes_count'] = 0
-            return Response(data, status=status.HTTP_201_CREATED)
+            serializer = SubscriptionSerializer(
+                author,
+                context={'request': request}
+            )
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
         deleted, _ = Subscription.objects.filter(
             user=request.user,
             author=author
@@ -101,6 +91,12 @@ class UserViewSet(DjoserUserViewSet):
         if not deleted:
             return Response(status=status.HTTP_400_BAD_REQUEST)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=False, methods=['get'],
+            permission_classes=[IsAuthenticated])
+    def me(self, request):
+        serializer = self.get_serializer(request.user)
+        return Response(serializer.data)
 
 
 class TagViewSet(viewsets.ReadOnlyModelViewSet):

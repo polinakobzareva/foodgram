@@ -1,12 +1,9 @@
 from django.contrib.auth import get_user_model
-from rest_framework.validators import UniqueValidator
-from django.core.validators import RegexValidator
 from djoser.serializers import UserSerializer
 from rest_framework import serializers
 
 from api.fields import Base64ImageField
-from foodgram.constants import (INGREDIENTS_MIN, TAG_MIN, TIME_MIN,
-                                USER_NAME_MAX_LENGTH)
+from foodgram.constants import (INGREDIENTS_MIN, TAG_MIN, TIME_MIN)
 from recipes.models import (Ingredient, Recipe,
                             RecipeIngredient, Tag)
 
@@ -101,17 +98,27 @@ class RecipeWriteSerializer(serializers.ModelSerializer):
         fields = ('tags', 'image', 'name',
                   'text', 'cooking_time', 'ingredients')
 
-    def validate_tags(self, value):
-        if not value:
-            raise serializers.ValidationError(f'Нужен хотя бы {TAG_MIN} тег')
-        if len(value) != len(set(value)):
-            raise serializers.ValidationError('Теги не должны повторяться')
-        return value
+    def validate(self, data):
+        tags = data.get('tags', [])
+        if not tags:
+            raise serializers.ValidationError(
+                {'tags': f'Нужен хотя бы {TAG_MIN} тег'})
+        if len(tags) != len(set(tag.id for tag in tags)):
+            raise serializers.ValidationError(
+                {'tags': 'Теги не должны повторяться'})
+        ingredients = data.get('ingredients', [])
+        if not ingredients:
+            raise serializers.ValidationError(
+                {'ingredients': f'Нужен хотя бы {INGREDIENTS_MIN} ингредиент'})
+        ids = [item['id'] for item in ingredients]
+        if len(ids) != len(set(ids)):
+            raise serializers.ValidationError(
+                {'ingredients': 'Ингредиенты не должны повторяться'})
 
-    def validate_image(self, value):
-        if not value:
-            raise serializers.ValidationError('Нужна картинка')
-        return value
+        if self.instance is None and not data.get('image'):
+            raise serializers.ValidationError({'image': 'Нужна картинка'})
+
+        return data
 
     def create(self, validated_data):
         tags = validated_data.pop('tags')
@@ -121,30 +128,14 @@ class RecipeWriteSerializer(serializers.ModelSerializer):
         self._save_ingredients(recipe, ingredients_data)
         return recipe
 
-    def validate_ingredients(self, value):
-        if not value:
-            raise serializers.ValidationError(
-                f'Нужен хотя бы {INGREDIENTS_MIN} ингредиент')
-        ids = [item['id'] for item in value]
-        if len(ids) != len(set(ids)):
-            raise serializers.ValidationError(
-                'Ингредиенты не должны повторяться')
-        return value
-
     def update(self, instance, validated_data):
         tags = validated_data.pop('tags', None)
         ingredients_data = validated_data.pop('ingredients', None)
-
-        if tags is None:
-            raise serializers.ValidationError(
-                {'tags': 'Это поле обязательно.'})
-        if ingredients_data is None:
-            raise serializers.ValidationError(
-                {'ingredients': 'Это поле обязательно.'})
-
-        instance.tags.set(tags)
-        instance.recipeingredient_set.all().delete()
-        self._save_ingredients(instance, ingredients_data)
+        if tags is not None:
+            instance.tags.set(tags)
+        if ingredients_data is not None:
+            instance.recipeingredient_set.all().delete()
+            self._save_ingredients(instance, ingredients_data)
         return super().update(instance, validated_data)
 
     def to_representation(self, instance):
@@ -160,23 +151,22 @@ class RecipeWriteSerializer(serializers.ModelSerializer):
         )
 
 
-class FoodgramUserCreateSerializer(serializers.ModelSerializer):
-    username = serializers.CharField(
-        required=True,
-        max_length=USER_NAME_MAX_LENGTH,
-        validators=[
-            RegexValidator(
-                regex=r'^[\w.@+-]+\Z',
-            ),
-            UniqueValidator(queryset=User.objects.all())
-        ]
-    )
-    password = serializers.CharField(write_only=True, required=True)
+class SubscriptionSerializer(FoodgramUserSerializer):
+    recipes = serializers.SerializerMethodField()
+    recipes_count = serializers.SerializerMethodField()
 
-    class Meta:
-        model = User
-        fields = ('email', 'id', 'username',
-                  'first_name', 'last_name', 'password')
+    class Meta(FoodgramUserSerializer.Meta):
+        fields = FoodgramUserSerializer.Meta.fields + ('recipes',
+                                                       'recipes_count')
 
-    def create(self, validated_data):
-        return User.objects.create_user(**validated_data)
+    def get_recipes(self, obj):
+        request = self.context.get('request')
+        recipes = obj.recipes.all()
+        if request:
+            limit = request.query_params.get('recipes_limit')
+            if limit:
+                recipes = recipes[:int(limit)]
+        return RecipeMinifiedSerializer(recipes, many=True).data
+
+    def get_recipes_count(self, obj):
+        return obj.recipes.count()
