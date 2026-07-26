@@ -114,11 +114,12 @@ class RecipeWriteSerializer(serializers.ModelSerializer):
         if len(ids) != len(set(ids)):
             raise serializers.ValidationError(
                 {'ingredients': 'Ингредиенты не должны повторяться'})
-
-        if self.instance is None and not data.get('image'):
-            raise serializers.ValidationError({'image': 'Нужна картинка'})
-
         return data
+
+    def validate_image(self, value):
+        if self.instance is None and not value:
+            raise serializers.ValidationError('Нужна картинка')
+        return value
 
     def create(self, validated_data):
         tags = validated_data.pop('tags')
@@ -129,13 +130,11 @@ class RecipeWriteSerializer(serializers.ModelSerializer):
         return recipe
 
     def update(self, instance, validated_data):
-        tags = validated_data.pop('tags', None)
-        ingredients_data = validated_data.pop('ingredients', None)
-        if tags is not None:
-            instance.tags.set(tags)
-        if ingredients_data is not None:
-            instance.recipeingredient_set.all().delete()
-            self._save_ingredients(instance, ingredients_data)
+        tags = validated_data.pop('tags')
+        ingredients_data = validated_data.pop('ingredients')
+        instance.tags.set(tags)
+        instance.recipeingredient_set.all().delete()
+        self._save_ingredients(instance, ingredients_data)
         return super().update(instance, validated_data)
 
     def to_representation(self, instance):
@@ -165,8 +164,13 @@ class SubscriptionSerializer(FoodgramUserSerializer):
         if request:
             limit = request.query_params.get('recipes_limit')
             if limit:
-                recipes = recipes[:int(limit)]
-        return RecipeMinifiedSerializer(recipes, many=True).data
+                try:
+                    limit = int(limit)
+                    recipes = recipes[:limit]
+                except (ValueError, TypeError):
+                    pass
+        return RecipeMinifiedSerializer(recipes, many=True,
+                                        context=self.context).data
 
     def get_recipes_count(self, obj):
         return obj.recipes.count()
