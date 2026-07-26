@@ -9,7 +9,6 @@ services:
     env_file: .env
     volumes:
       - pg_data:/var/lib/postgresql/data
-    restart: always
 
   backend:
     image: polina0204/foodgram_backend
@@ -19,14 +18,12 @@ services:
     volumes:
       - static:/backend_static
       - media:/app/media
-    restart: always
 
   frontend:
     image: polina0204/foodgram_frontend
     command: cp -r /app/build/. /frontend_static/
     volumes:
       - static:/frontend_static
-    restart: always
 
   nginx:
     image: polina0204/foodgram_gateway
@@ -37,4 +34,3 @@ services:
       - media:/app/media
     depends_on:
       - backend
-    restart: always
